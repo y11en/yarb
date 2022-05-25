@@ -1,8 +1,10 @@
 #!/usr/bin/python3
-
+import codecs
 import os
 import json
 import time
+import traceback
+
 import schedule
 import pyfiglet
 import argparse
@@ -16,13 +18,14 @@ from bot import *
 from utils import Color, Pattern
 
 import requests
-requests.packages.urllib3.disable_warnings()
 
 today = datetime.datetime.now().strftime("%Y-%m-%d")
 
 
-def update_today(data: list=[]):
+def update_today(data=None):
     """更新today"""
+    if data is None:
+        data = []
     root_path = Path(__file__).absolute().parent
     data_path = root_path.joinpath('temp_data.json')
     today_path = root_path.joinpath('today.md')
@@ -33,15 +36,17 @@ def update_today(data: list=[]):
             data = json.load(f1)
 
     archive_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(today_path, 'w+') as f1, open(archive_path, 'w+') as f2:
+    with open(today_path, 'wb+') as f1, open(archive_path, 'wb+') as f2:
         content = f'# 每日安全资讯（{today}）\n\n'
         for item in data:
             (feed, value), = item.items()
-            content += f'- {feed}\n'
+            content += f'- [{feed}]\n'
             for title, url in value.items():
-                content += f'  - [{title}]({url})\n'
-        f1.write(content)
-        f2.write(content)
+                if title == '':
+                    title = '#NO_TITLE#'
+                content += f'\t- [{title}]({url})\n'
+        f1.write(content.encode('utf-8'))
+        f2.write(content.encode('utf-8'))
 
 
 def update_rss(rss: dict, proxy_url=''):
@@ -52,17 +57,20 @@ def update_rss(rss: dict, proxy_url=''):
     rss_path = root_path.joinpath(f'rss/{value["filename"]}')
 
     result = None
-    if url := value.get('url'):
-        r = requests.get(value['url'], proxies=proxy)
-        if r.status_code == 200:
-            with open(rss_path, 'w+') as f:
-                f.write(r.text)
-            print(f'[+] 更新完成：{key}')
-            result = {key: rss_path}
-        elif rss_path.exists():
-            print(f'[-] 更新失败，使用旧文件：{key}')
-            result = {key: rss_path}
-        else:
+    url = value.get('url')
+    if url:
+        try:
+            print(url)
+            r = requests.get(value['url'], proxies=proxy)
+            if r.status_code == 200:
+                with open(rss_path, 'wb+') as f:
+                    f.write(r.content)
+                print(f'[+] 更新完成：{key}')
+                result = {key: rss_path}
+            elif rss_path.exists():
+                print(f'[-] 更新失败，使用旧文件：{key}')
+                result = {key: rss_path}
+        except Exception as e:
             print(f'[-] 更新失败，跳过：{key}')
     else:
         print(f'[+] 本地文件：{key}')
@@ -82,23 +90,33 @@ def parseThread(url: str, proxy_url=''):
     title = ''
     result = {}
     try:
+        print(f'=>{url}')
         r = requests.get(url, timeout=10, headers=headers, verify=False, proxies=proxy)
         r = feedparser.parse(r.content)
-        title = r.feed.title
+        title = r.feed.get('title')
         for entry in r.entries:
-            d = entry.get('published_parsed')
+            d = entry.get('published_parsed', '')
             if not d:
-                d = entry.updated_parsed
+                d = entry.get('updated_parsed')
+                # print (entry.keys())
+                if not d:   # 解决一些日期获取失败的问题
+                    d = entry.get('updated_date')
+                    d = d.split(' ')[0]
+                    d = d.split('-')
+                    d = [int(x) for x in d]
+                    print('尝试修复时间解析错误 ', d)
+
             yesterday = datetime.date.today() + datetime.timedelta(-1)
             pubday = datetime.date(d[0], d[1], d[2])
-            if pubday == yesterday:
-                item = {entry.title: entry.link}
-                print(item)
-                result.update(item)
+            if pubday in (yesterday, datetime.date.today()):
+                if entry.title != '':
+                    item = {entry.title: entry.link}
+                    print(item)
+                    result.update(item)
         Color.print_success(f'[+] {title}\t{url}\t{len(result.values())}/{len(r.entries)}')
     except Exception as e:
         Color.print_failed(f'[-] failed: {url}')
-        print(e)
+        # traceback.print_exc()
     return title, result
 
 
@@ -107,10 +125,9 @@ def init_bot(conf: dict, proxy_url=''):
     bots = []
     for name, v in conf.items():
         if v['enabled']:
-            key = os.getenv(v['secrets'])
+            key = os.getenv(v.get('secrets', ''))
             if not key:
-                key = v['key']
-
+                key = v.get('key', '')
             if name == 'qq':
                 bot = globals()[f'{name}Bot'](v['group_id'])
                 if bot.start_server(v['qq_id'], key):
@@ -119,6 +136,9 @@ def init_bot(conf: dict, proxy_url=''):
                 bot = globals()[f'{name}Bot'](key, v['chat_id'], proxy_url)
                 if bot.test_connect():
                     bots.append(bot)
+            elif name == 'wordpress':
+                bot = globals()[f'{name}Bot'](v['server'], v['user'], v['password'])
+                bots.append(bot)
             elif name == 'mail':
                 bot = globals()[f'{name}Bot'](v['address'], key, v['receiver'], v['server'])
                 bots.append(bot)
@@ -128,13 +148,14 @@ def init_bot(conf: dict, proxy_url=''):
     return bots
 
 
-def init_rss(conf: dict, update: bool=False, proxy_url=''):
+def init_rss(conf: dict, update: bool = False, proxy_url=''):
     """初始化订阅源"""
     rss_list = []
-    enabled = [{k: v} for k, v in conf.items() if v['enabled']]
+    enabled = [{k: v} for k, v in conf.items() if v.get('enabled', False)]
     for rss in enabled:
         if update:
-            if rss := update_rss(rss, proxy_url):
+            rss = update_rss(rss, proxy_url)
+            if rss:
                 rss_list.append(rss)
         else:
             (key, value), = rss.items()
@@ -145,7 +166,7 @@ def init_rss(conf: dict, update: bool=False, proxy_url=''):
     for rss in rss_list:
         (_, value), = rss.items()
         try:
-            rss = listparser.parse(open(value).read())
+            rss = listparser.parse(open(value, 'rb').read())
             for feed in rss.feeds:
                 url = feed.url.strip().rstrip('/')
                 short_url = url.split('://')[-1].split('www.')[-1]
@@ -184,10 +205,12 @@ def job(args):
     proxy_rss = conf['proxy']['url'] if conf['proxy']['rss'] else ''
     feeds = init_rss(conf['rss'], args.update, proxy_rss)
 
+    # feeds = feeds[:10]
+
     results = []
     if args.test:
         # 测试数据
-        results.extend({f'test{i}': {Pattern.create(i*500): 'test'}} for i in range(1, 20))
+        results.extend({f'test{i}': {Pattern.create(i * 500): 'test'}} for i in range(1, 20))
     else:
         # 获取文章
         numb = 0
@@ -195,7 +218,7 @@ def job(args):
         with ThreadPoolExecutor(100) as executor:
             tasks.extend(executor.submit(parseThread, url, proxy_rss) for url in feeds)
             for task in as_completed(tasks):
-                title, result = task.result()            
+                title, result = task.result()
                 if result:
                     numb += len(result.values())
                     results.append({title: result})
@@ -226,6 +249,7 @@ def argument():
 
 
 if __name__ == '__main__':
+    requests.packages.urllib3.disable_warnings()
     args = argument()
     if args.cron:
         schedule.every().day.at(args.cron).do(job, args)

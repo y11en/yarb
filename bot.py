@@ -1,5 +1,7 @@
 import time
 import json
+
+import markdown
 import yaml
 import telegram
 import requests
@@ -10,10 +12,12 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from datetime import datetime
 from pyrate_limiter import Duration, Limiter, RequestRate
+from wordpress_xmlrpc import WordPressPost, Client
+from wordpress_xmlrpc.methods.posts import NewPost
 
 from utils import Color
 
-__all__ = ["feishuBot", "wecomBot", "dingtalkBot", "qqBot", "telegramBot", "mailBot"]
+__all__ = ["feishuBot", "wecomBot", "dingtalkBot", "qqBot", "telegramBot", "mailBot", "wordpressBot"]
 today = datetime.now().strftime("%Y-%m-%d")
 
 
@@ -21,6 +25,7 @@ class feishuBot:
     """飞书群机器人
     https://open.feishu.cn/document/ukTMukTMukTM/ucTM5YjL3ETO24yNxkjN
     """
+
     def __init__(self, key, proxy_url='') -> None:
         self.key = key
         self.proxy = {'http': proxy_url, 'https': proxy_url} if proxy_url else {'http': None, 'https': None}
@@ -61,6 +66,7 @@ class wecomBot:
     """企业微信群机器人
     https://developer.work.weixin.qq.com/document/path/91770
     """
+
     def __init__(self, key, proxy_url='') -> None:
         self.key = key
         self.proxy = {'http': proxy_url, 'https': proxy_url} if proxy_url else {'http': None, 'https': None}
@@ -77,7 +83,7 @@ class wecomBot:
         return text_list
 
     def send(self, text_list: list):
-        limiter = Limiter(RequestRate(20, Duration.MINUTE))     # 频率限制，20条/分钟
+        limiter = Limiter(RequestRate(20, Duration.MINUTE))  # 频率限制，20条/分钟
         for text in text_list:
             with limiter.ratelimit('identity', delay=True):
                 print(f'{len(text)} {text[:50]}...{text[-50:]}')
@@ -98,6 +104,7 @@ class dingtalkBot:
     """钉钉群机器人
     https://open.dingtalk.com/document/robots/custom-robot-access
     """
+
     def __init__(self, key, proxy_url='') -> None:
         self.key = key
         self.proxy = {'http': proxy_url, 'https': proxy_url} if proxy_url else {'http': None, 'https': None}
@@ -112,7 +119,7 @@ class dingtalkBot:
         return text_list
 
     def send(self, text_list: list):
-        limiter = Limiter(RequestRate(20, Duration.MINUTE))     # 频率限制，20条/分钟
+        limiter = Limiter(RequestRate(20, Duration.MINUTE))  # 频率限制，20条/分钟
         for (feed, text) in text_list:
             with limiter.ratelimit('identity', delay=True):
                 print(f'{len(text)} {text[:50]}...{text[-50:]}')
@@ -151,7 +158,7 @@ class qqBot:
         return text_list
 
     def send(self, text_list: list):
-        limiter = Limiter(RequestRate(20, Duration.MINUTE))     # 频率限制，20条/分钟
+        limiter = Limiter(RequestRate(20, Duration.MINUTE))  # 频率限制，20条/分钟
         for text in text_list:
             with limiter.ratelimit('identity', delay=True):
                 print(f'{len(text)} {text[:50]}...{text[-50:]}')
@@ -201,6 +208,7 @@ class qqBot:
 class mailBot:
     """邮件机器人
     """
+
     def __init__(self, sender, passwd, receiver: list, server='') -> None:
         self.sender = sender
         self.receiver = receiver
@@ -253,6 +261,7 @@ class telegramBot:
     """Telegram机器人
     https://core.telegram.org/bots/api
     """
+
     def __init__(self, key, chat_id: list, proxy_url='') -> None:
         proxy = telegram.utils.request.Request(proxy_url=proxy_url)
         self.chat_id = chat_id
@@ -273,12 +282,12 @@ class telegramBot:
             (feed, value), = result.items()
             text = f'<b>{feed}</b>\n'
             for idx, (title, link) in enumerate(value.items()):
-                text += f'{idx+1}. <a href="{link}">{title}</a>\n'
+                text += f'{idx + 1}. <a href="{link}">{title}</a>\n'
             text_list.append(text.strip())
         return text_list
 
     def send(self, text_list: list):
-        limiter = Limiter(RequestRate(20, Duration.MINUTE))     # 频率限制，20条/分钟
+        limiter = Limiter(RequestRate(20, Duration.MINUTE))  # 频率限制，20条/分钟
         for text in text_list:
             with limiter.ratelimit('identity', delay=True):
                 print(f'{len(text)} {text[:50]}...{text[-50:]}')
@@ -290,3 +299,54 @@ class telegramBot:
                     except Exception as e:
                         Color.print_failed(f'[-] telegramBot 发送失败 {id}')
                         print(e)
+
+
+class wordpressBot:
+    def __init__(self, server, user, pwd):
+        self.server = server
+        self.user = user
+        self.pwd = pwd
+
+    @staticmethod
+    def parse_results(results: list):
+        subject = f'# 每日安全资讯（{today}）\n\n'
+        content = []
+        for item in results:
+            (feed, value), = item.items()
+            content.append(f'- [{feed}]\n')
+            for title, url in value.items():
+                content.append(f'\t- [{title}]({url})\n')
+
+        # 所支持的复杂元素
+        exts = ['markdown.extensions.extra', 'markdown.extensions.codehilite', 'markdown.extensions.tables',
+                'markdown.extensions.toc']
+
+        # MD->HTML
+        content = ''.join(content)
+        md = markdown.Markdown(extensions=exts)
+        html_body = md.convert(content)
+
+        return subject, html_body
+
+    def send(self, data):
+        category = ['安全资讯']
+        tag = ['每日安全播报']
+        posttype = 'publish'
+        excerpt = ''
+        title = data[0]
+        content = data[1]
+
+        url = self.server
+        wp = Client(url, self.user, self.pwd)
+
+        post = WordPressPost()
+        post.post_status = posttype
+        post.title = title
+        post.content = content
+        post.excerpt = excerpt
+        post.terms_names = {
+            "post_tag": tag,
+            "category": category
+        }
+
+        wp.call(NewPost(post))

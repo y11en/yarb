@@ -1,41 +1,41 @@
 {
     "proxy": {
-        "url": "http://127.0.0.1:7890",
+        "url": "",
         "rss": false,
         "bot": false
     },
     "rss": {
         "CustomRSS": {
-            "enabled": true,
+            "enabled": false,
             "filename": "CustomRSS.opml"
         },
         "CyberSecurityRSS": {
-            "enabled": true,
+            "enabled": false,
             "url": "https://raw.githubusercontent.com/zer0yu/CyberSecurityRSS/master/CyberSecurityRSS.opml",
             "filename": "CyberSecurityRSS.opml"
         },
         "CyberSecurityRSS-tiny": {
-            "enabled": true,
+            "enabled": false,
             "url": "https://raw.githubusercontent.com/zer0yu/CyberSecurityRSS/master/tiny.opml",
             "filename": "CyberSecurityRSS-tiny.opml"
         },
         "Chinese-Security-RSS": {
-            "enabled": true,
+            "enabled": false,
             "url": "https://raw.githubusercontent.com/zhengjim/Chinese-Security-RSS/master/Chinese-Security-RSS.opml",
             "filename": "Chinese-Security-RSS.opml"
         },
         "awesome-security-feed": {
-            "enabled": true,
+            "enabled": false,
             "url": "https://raw.githubusercontent.com/mrtouch93/awesome-security-feed/main/security_feeds.opml",
             "filename": "awesome-security-feed.opml"
         },
         "SecurityRSS": {
-            "enabled": true,
-            "url": "https://github.com/Han0nly/SecurityRSS/blob/master/SecureRss.opml",
+            "enabled": false,
+            "url": "https://raw.githubusercontent.com/Han0nly/SecurityRSS/master/SecureRss.opml",
             "filename": "SecurityRSS.opml"
         },
         "wechatRSS": {
-            "enabled": true,
+            "enabled": false,
             "url": "https://www.inoreader.com/reader/api/0/bundle/opml/0014cd641489",
             "filename": "wechatRSS.opml"
         },
@@ -48,7 +48,7 @@
 
     "bot": {
         "feishu": {
-            "enabled": true,
+            "enabled": false,
             "secrets": "FEISHU_KEY",
             "key": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
         },
@@ -63,25 +63,31 @@
             "key": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
         },
         "qq": {
-            "enabled": true,
+            "enabled": false,
             "secrets": "QQ_KEY",
             "qq_id": "2419110059",
             "group_id": ["808542982", "217863340"],
             "key": "xxxxxxxxxx"
         },
         "telegram":{
-            "enabled": true,
+            "enabled": false,
             "secrets": "TELEGRAM_KEY",
             "chat_id": ["-799557100"],
             "key": "xxxxxxxxxx"
         },
         "mail": {
-            "enabled": true,
+            "enabled": false,
             "secrets": "MAIL_KEY",
             "address": "firmianay@163.com",
             "server": "smtp.163.com",
             "receiver": ["2419110059@qq.com"],
             "key": "xxxxxxxxxx"
+        },
+        "wordpress": {
+            "enabled" : false,
+            "user" : "_WP_USERNAME_",
+            "password" : "_WP_USERPASSWORD_",
+            "server" : "http://_YOUR_WORDPRESS_SITE/xmlrpc.php"
         }
     }
 }

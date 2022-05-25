@@ -7,4 +7,6 @@ pyyaml
 python-telegram-bot
 PySocks
 pyrate-limiter
+markdown
+python-wordpress-xmlrpc
 git+https://github.com/kurtmckee/listparser@develop
