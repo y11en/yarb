@@ -54,6 +54,8 @@ $ nohup ./yarb.py --cron 11:00 > run.log 2>&1 &
 - [钉钉群机器人](https://open.dingtalk.com/document/robots/custom-robot-access)：`DINGTALK_KEY`
 - [QQ群机器人](https://github.com/Mrs4s/go-cqhttp)：`QQ_KEY`（需要关闭登录设备锁）
 - [Telegram机器人](https://core.telegram.org/bots/api): `TELEGRAM_KEY`（需要代理）
+- WordPress机器人，通过 wordpress XML-RPC 推送到指定网站：查找替换`_WP_USERNAME_` wordpress具有编辑权限的用户名 
+`_WP_USERPASSWORD_`密码 `_YOUR_WORDPRESS_SITE`网址
 
 ## 订阅源
 
